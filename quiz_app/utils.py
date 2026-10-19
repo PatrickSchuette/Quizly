@@ -1,8 +1,6 @@
 import json
-import re
+import os
 import tempfile
-from functools import lru_cache
-from pathlib import Path
 
 import whisper
 import yt_dlp
@@ -10,13 +8,19 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from google import genai
-from google.genai import errors, types
+from google.genai import errors
 
 from .models import Question, Quiz
 
 WHISPER_MODEL_NAME = "base"
 GEMINI_MODEL_NAMES = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
-YOUTUBE_ID_PATTERN = re.compile(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\.be/)([\w-]{11})")
+YOUTUBE_MARKERS = [
+    "youtube.com/watch?v=",
+    "youtu.be/",
+    "youtube.com/shorts/",
+    "youtube.com/embed/",
+    "youtube.com/live/",
+]
 QUIZ_PROMPT = """Based on the following transcript, generate a quiz in valid JSON format.
 
 The quiz must follow this exact structure:
@@ -47,8 +51,13 @@ Transcript:
 
 def extract_video_id(url: str) -> str | None:
     """Return the 11-character video id of a YouTube URL, or None if it is no YouTube URL."""
-    match = YOUTUBE_ID_PATTERN.search(url)
-    return match.group(1) if match else None
+    for marker in YOUTUBE_MARKERS:
+        if marker in url:
+            text_after_marker = url.split(marker)[1]
+            video_id = text_after_marker[:11]
+            if len(video_id) == 11:
+                return video_id
+    return None
 
 
 def build_watch_url(video_id: str) -> str:
@@ -58,7 +67,7 @@ def build_watch_url(video_id: str) -> str:
 
 def download_audio(video_url: str, target_folder: str) -> str:
     """Download the audio track of a YouTube video and return the file path."""
-    tmp_filename = str(Path(target_folder) / "audio.%(ext)s")
+    tmp_filename = os.path.join(target_folder, "audio.%(ext)s")
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": tmp_filename,
@@ -70,30 +79,25 @@ def download_audio(video_url: str, target_folder: str) -> str:
         return downloader.prepare_filename(info)
 
 
-@lru_cache(maxsize=1)
-def get_whisper_model() -> whisper.Whisper:
-    """Load the Whisper model once and reuse it for all later transcriptions."""
-    return whisper.load_model(WHISPER_MODEL_NAME)
-
-
 def transcribe_audio(audio_path: str) -> str:
-    """Turn the spoken words of an audio file into plain text."""
-    result = get_whisper_model().transcribe(audio_path, fp16=False)
+    """Turn the spoken words of an audio file into plain text with Whisper."""
+    model = whisper.load_model(WHISPER_MODEL_NAME)
+    result = model.transcribe(audio_path, fp16=False)
     return result["text"].strip()
 
 
 def remove_markdown(text: str) -> str:
     """Remove markdown code fences like ```json and ``` around the JSON text."""
-    text = text.strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s*```$", "", text)
+    text = text.replace("```json", "")
+    text = text.replace("```JSON", "")
+    text = text.replace("```", "")
     return text.strip()
 
 
 def ask_gemini(prompt: str) -> str:
     """Send the prompt to Gemini and return the answer text, trying the next model if one is busy."""
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    config = types.GenerateContentConfig(response_mime_type="application/json")
+    config = {"response_mime_type": "application/json"}
     for model_name in GEMINI_MODEL_NAMES:
         try:
             response = client.models.generate_content(
@@ -101,18 +105,21 @@ def ask_gemini(prompt: str) -> str:
             )
             return response.text
         except errors.ServerError:
-            continue
+            print("Gemini model is busy, trying the next one:", model_name)
     raise RuntimeError("All Gemini models are currently unavailable.")
 
 
 def generate_quiz_data(transcript: str) -> dict:
     """Create a quiz from the transcript with Gemini and return it as a dictionary."""
-    answer_text = ask_gemini(QUIZ_PROMPT.format(transcript=transcript))
-    return json.loads(remove_markdown(answer_text))
+    prompt = QUIZ_PROMPT.format(transcript=transcript)
+    answer_text = ask_gemini(prompt)
+    clean_text = remove_markdown(answer_text)
+    return json.loads(clean_text)
+
 
 def validate_quiz_data(quiz_data: dict) -> None:
     """Raise a ValueError if the quiz from Gemini does not have the expected structure."""
-    questions = quiz_data.get("questions", [])
+    questions = quiz_data["questions"]
     if len(questions) != 10:
         raise ValueError("Gemini did not return exactly 10 questions.")
     for question in questions:
@@ -122,9 +129,19 @@ def validate_quiz_data(quiz_data: dict) -> None:
             raise ValueError("The answer must be one of the options.")
 
 
+def save_question(quiz: Quiz, question: dict) -> None:
+    """Store one question of the quiz in the database."""
+    Question.objects.create(
+        quiz=quiz,
+        question_title=question["question_title"],
+        question_options=question["question_options"],
+        answer=question["answer"],
+    )
+
+
 @transaction.atomic
 def save_quiz(owner: User, video_url: str, quiz_data: dict) -> Quiz:
-    """Store the quiz and all of its questions in the database in one step."""
+    """Store the quiz and all of its questions; if one step fails, nothing is saved."""
     quiz = Quiz.objects.create(
         owner=owner,
         video_url=video_url,
@@ -132,12 +149,7 @@ def save_quiz(owner: User, video_url: str, quiz_data: dict) -> Quiz:
         description=quiz_data["description"],
     )
     for question in quiz_data["questions"]:
-        Question.objects.create(
-            quiz=quiz,
-            question_title=question["question_title"],
-            question_options=question["question_options"],
-            answer=question["answer"],
-        )
+        save_question(quiz, question)
     return quiz
 
 

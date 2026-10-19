@@ -31,5 +31,8 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict) -> User:
         """Create the user with a properly hashed password."""
-        validated_data.pop("confirmed_password")
-        return User.objects.create_user(**validated_data)
+        return User.objects.create_user(
+            username=validated_data["username"],
+            email=validated_data["email"],
+            password=validated_data["password"],
+        )

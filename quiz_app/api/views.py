@@ -1,8 +1,5 @@
-import logging
-
 from django.db.models import QuerySet
-from rest_framework import generics, status
-from rest_framework.exceptions import APIException, ParseError
+from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -13,7 +10,8 @@ from quiz_app.utils import create_quiz_from_url
 from .permissions import IsQuizOwner
 from .serializers import QuizCreateSerializer, QuizDetailSerializer, QuizSerializer
 
-logger = logging.getLogger(__name__)
+DOWNLOAD_ERROR = {"detail": "The video could not be downloaded."}
+GENERATION_ERROR = {"detail": "The quiz could not be generated."}
 
 
 class QuizListCreateView(generics.ListAPIView):
@@ -21,26 +19,23 @@ class QuizListCreateView(generics.ListAPIView):
 
     serializer_class = QuizSerializer
 
-    def get_queryset(self) -> QuerySet[Quiz]:
+    def get_queryset(self) -> QuerySet:
         """Return only the quizzes that belong to the current user."""
         return Quiz.objects.filter(owner=self.request.user)
 
     def post(self, request: Request) -> Response:
-        """Validate the URL, generate the quiz and return it with all questions."""
-        input_serializer = QuizCreateSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        quiz = self.generate_quiz(input_serializer.validated_data["url"])
-        return Response(QuizDetailSerializer(quiz).data, status=status.HTTP_201_CREATED)
-
-    def generate_quiz(self, video_url: str) -> Quiz:
-        """Run the quiz pipeline and turn its errors into API error responses."""
+        """Validate the URL, create the quiz and return it with all questions."""
+        serializer = QuizCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        video_url = serializer.validated_data["url"]
         try:
-            return create_quiz_from_url(self.request.user, video_url)
+            quiz = create_quiz_from_url(request.user, video_url)
         except DownloadError:
-            raise ParseError("The video could not be downloaded.")
-        except Exception:
-            logger.exception("Quiz generation failed for %s", video_url)
-            raise APIException("The quiz could not be generated.")
+            return Response(DOWNLOAD_ERROR, status=400)
+        except Exception as error:
+            print("Quiz generation failed:", error)
+            return Response(GENERATION_ERROR, status=500)
+        return Response(QuizDetailSerializer(quiz).data, status=201)
 
 
 class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):

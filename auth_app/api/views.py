@@ -27,7 +27,7 @@ class RegistrationView(APIView):
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"detail": "User created successfully!"}, status=status.HTTP_201_CREATED,)
+        return Response({"detail": "User created successfully!"}, status=status.HTTP_201_CREATED)
 
 
 class LoginView(APIView):
@@ -43,7 +43,7 @@ class LoginView(APIView):
             password=request.data.get("password"),
         )
         if user is None:
-            return Response({"detail": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED,)
+            return Response({"detail": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
         return self.build_login_response(user)
 
     def build_login_response(self, user: User) -> Response:
@@ -63,7 +63,8 @@ class LogoutView(APIView):
 
     def post(self, request: Request) -> Response:
         """Invalidate the refresh token and remove both cookies."""
-        self.blacklist_refresh_token(request.COOKIES.get("refresh_token"))
+        raw_refresh = request.COOKIES.get("refresh_token")
+        self.blacklist_refresh_token(raw_refresh)
         response = Response({
             "detail": "Log-Out successfully! All Tokens will be deleted. "
                       "Refresh token is now invalid."
@@ -89,10 +90,10 @@ class CookieTokenRefreshView(APIView):
 
     def post(self, request: Request) -> Response:
         """Read the refresh cookie and set a fresh access token cookie."""
-        access_token = self.create_access_token(
-            request.COOKIES.get("refresh_token"))
+        raw_refresh = request.COOKIES.get("refresh_token")
+        access_token = self.create_access_token(raw_refresh)
         if access_token is None:
-            return Response({"detail": "Refresh token is missing or invalid."}, status=status.HTTP_401_UNAUTHORIZED,)
+            return Response({"detail": "Refresh token is missing or invalid."}, status=401)
         response = Response({"detail": "Token refreshed"})
         set_access_cookie(response, access_token)
         return response

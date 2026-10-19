@@ -151,8 +151,7 @@ class QuizCreateTests(APITestCase):
 
     def test_create_with_wrong_quiz_data_saves_nothing(self) -> None:
         """If Gemini returns only 3 questions, nothing is saved."""
-        with self.assertLogs("quiz_app.api.views", level="ERROR"):
-            response = self.create_quiz(VIDEO_URL, build_quiz_data(3))
+        response = self.create_quiz(VIDEO_URL, build_quiz_data(3))
         self.assertEqual(response.status_code, 500)
         self.assertEqual(Quiz.objects.count(), 0)
 
