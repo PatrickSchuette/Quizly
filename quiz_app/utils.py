@@ -16,9 +16,7 @@ from .models import Question, Quiz
 
 WHISPER_MODEL_NAME = "base"
 GEMINI_MODEL_NAMES = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
-YOUTUBE_ID_PATTERN = re.compile(
-    r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/)|youtu\.be/)([\w-]{11})"
-)
+YOUTUBE_ID_PATTERN = re.compile(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\.be/)([\w-]{11})")
 QUIZ_PROMPT = """Based on the following transcript, generate a quiz in valid JSON format.
 
 The quiz must follow this exact structure:
