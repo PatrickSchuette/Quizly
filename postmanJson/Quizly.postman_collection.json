@@ -1,0 +1,1257 @@
+{
+  "info": {
+    "_postman_id": "06bd4650-f075-43c4-8bb4-75dec4bfc573",
+    "name": "Quizly",
+    "description": "Full happy-path / unhappy-path test suite for the Quizly backend.\n\nIMPORTANT: Run the whole collection top-to-bottom (Collection Runner), not individual requests in isolation. Later requests depend on environment variables (usernames, quizId) set by earlier ones.\n\nAuthentication works with HttpOnly cookies. Postman stores the cookies from the login response automatically and sends them with every following request, so no Authorization header is needed. To switch users the collection simply logs in as the other user; logout removes the cookies again.\n\n'happy path > Quizzes > create_quiz' really downloads the YouTube video, transcribes it with Whisper and asks Gemini. This can take a minute; use a short video in the environment variable 'youtube_url'.\n\nThe 'cleanup' folder must run last: it deletes the quiz and checks that the old refresh token is blacklisted after logout.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "happy path",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "register_owner",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const NAME = pm.variables.replaceIn(\"{{$randomFirstName}} {{$randomLastName}}\");\nconst USERNAME = NAME.toLowerCase().replace(/ /g, '_') + \"_\" + Date.now();\nconst EMAIL = `${USERNAME}@test.de`;\npm.variables.set(\"USERNAME\", USERNAME);\npm.variables.set(\"EMAIL\", EMAIL);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));\nconst body = pm.response.json();\npm.test(\"Success message is returned\", () => pm.expect(body.detail).to.eql(\"User created successfully!\"));\nif (pm.response.code === 201) {\n    pm.environment.set(\"ownerUsername\", pm.variables.get(\"USERNAME\"));\n    pm.environment.set(\"ownerEmail\", pm.variables.get(\"EMAIL\"));\n}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{USERNAME}}\",\n    \"email\": \"{{EMAIL}}\",\n    \"password\": \"{{password}}\",\n    \"confirmed_password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/register/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "register_other",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const NAME = pm.variables.replaceIn(\"{{$randomFirstName}} {{$randomLastName}}\");\nconst USERNAME = NAME.toLowerCase().replace(/ /g, '_') + \"_\" + Date.now();\nconst EMAIL = `${USERNAME}@test.de`;\npm.variables.set(\"USERNAME\", USERNAME);\npm.variables.set(\"EMAIL\", EMAIL);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));\nconst body = pm.response.json();\npm.test(\"Success message is returned\", () => pm.expect(body.detail).to.eql(\"User created successfully!\"));\nif (pm.response.code === 201) {\n    pm.environment.set(\"otherUsername\", pm.variables.get(\"USERNAME\"));\n    pm.environment.set(\"otherEmail\", pm.variables.get(\"EMAIL\"));\n}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{USERNAME}}\",\n    \"email\": \"{{EMAIL}}\",\n    \"password\": \"{{password}}\",\n    \"confirmed_password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/register/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "login_owner",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Response contains the logged-in user\", () => pm.expect(body.user.username).to.eql(pm.environment.get(\"ownerUsername\")));\npm.test(\"access_token cookie is set\", () => pm.expect(pm.cookies.has(\"access_token\")).to.be.true);\npm.test(\"refresh_token cookie is set\", () => pm.expect(pm.cookies.has(\"refresh_token\")).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{ownerUsername}}\",\n    \"password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/login/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "login",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "token_refresh",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Refresh message is returned\", () => pm.expect(body.detail).to.eql(\"Token refreshed\"));\npm.test(\"access_token cookie is set\", () => pm.expect(pm.cookies.has(\"access_token\")).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/token/refresh/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "token",
+                    "refresh",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Quizzes",
+          "item": [
+            {
+              "name": "create_quiz",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));\nconst body = pm.response.json();\npm.test(\"Quiz has exactly 10 questions\", () => pm.expect(body.questions.length).to.eql(10));\npm.test(\"Every question has 4 options and a valid answer\", () => {\n    body.questions.forEach(q => {\n        pm.expect(q.question_options.length).to.eql(4);\n        pm.expect(q.question_options).to.include(q.answer);\n    });\n});\npm.test(\"video_url is saved in standard format\", () => pm.expect(body.video_url).to.match(/^https:\\/\\/www\\.youtube\\.com\\/watch\\?v=[A-Za-z0-9_-]{11}$/));\npm.test(\"Questions contain timestamps\", () => pm.expect(body.questions[0]).to.have.property(\"created_at\"));\nif (pm.response.code === 201) { pm.environment.set(\"quizId\", body.id); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"url\": \"{{youtube_url}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "list_quizzes",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Response is an array\", () => pm.expect(body).to.be.an(\"array\"));\npm.test(\"Contains our quiz\", () => {\n    const ids = body.map(q => q.id);\n    pm.expect(ids).to.include(Number(pm.environment.get(\"quizId\")));\n});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "get_quiz_detail",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Quiz id matches\", () => pm.expect(body.id).to.eql(Number(pm.environment.get(\"quizId\"))));\npm.test(\"Response has all expected fields\", () => {\n    [\"id\", \"title\", \"description\", \"created_at\", \"updated_at\", \"video_url\", \"questions\"].forEach(field => {\n        pm.expect(body).to.have.property(field);\n    });\n});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "patch_quiz",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Title was updated\", () => pm.expect(body.title).to.eql(\"Updated Quiz Title\"));\npm.test(\"Description was updated\", () => pm.expect(body.description).to.eql(\"Updated description\"));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"title\": \"Updated Quiz Title\",\n    \"description\": \"Updated description\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "patch_quiz_video_url_is_read_only",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"video_url was not changed\", () => pm.expect(body.video_url).to.not.eql(\"https://www.google.com/\"));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"video_url\": \"https://www.google.com/\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unhappy path",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "register_duplicate_username",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{ownerUsername}}\",\n    \"email\": \"someone-else-{{$timestamp}}@test.de\",\n    \"password\": \"{{password}}\",\n    \"confirmed_password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/register/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "register_duplicate_email",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"new_user_{{$timestamp}}\",\n    \"email\": \"{{ownerEmail}}\",\n    \"password\": \"{{password}}\",\n    \"confirmed_password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/register/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "register_password_mismatch",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"mismatch_user_{{$timestamp}}\",\n    \"email\": \"mismatch_{{$timestamp}}@test.de\",\n    \"password\": \"{{password}}\",\n    \"confirmed_password\": \"totally_different\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/register/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "login_wrong_password",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));\npm.test(\"Error message is general\", () => pm.expect(pm.response.json().detail).to.eql(\"Invalid credentials.\"));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{ownerUsername}}\",\n    \"password\": \"totally_wrong_password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/login/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "login",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Quizzes",
+          "item": [
+            {
+              "name": "create_quiz_invalid_url",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"url\": \"https://www.google.com/\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "create_quiz_missing_url",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "get_quiz_not_found",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/999999999/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "999999999",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "put_quiz_not_allowed",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 405\", () => pm.response.to.have.status(405));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"title\": \"x\",\n    \"description\": \"x\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Quizzes other user",
+          "item": [
+            {
+              "name": "login_other",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Response contains the logged-in user\", () => pm.expect(body.user.username).to.eql(pm.environment.get(\"otherUsername\")));\npm.test(\"access_token cookie is set\", () => pm.expect(pm.cookies.has(\"access_token\")).to.be.true);\npm.test(\"refresh_token cookie is set\", () => pm.expect(pm.cookies.has(\"refresh_token\")).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{otherUsername}}\",\n    \"password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/login/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "login",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "list_quizzes_other_user_is_empty",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\npm.test(\"Other user does not see the quiz of the owner\", () => pm.expect(pm.response.json()).to.eql([]));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "get_quiz_wrong_owner",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "patch_quiz_wrong_owner",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"title\": \"Hacked title\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "delete_quiz_wrong_owner",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Unauthenticated",
+          "item": [
+            {
+              "name": "logout_other",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\npm.test(\"access_token cookie was removed\", () => pm.expect(pm.cookies.has(\"access_token\")).to.be.false);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/logout/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "logout",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "list_quizzes_unauthenticated",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "create_quiz_unauthenticated",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"url\": \"{{youtube_url}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/quizzes/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "get_quiz_unauthenticated",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/quizzes/{{quizId}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "quizzes",
+                    "{{quizId}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "logout_unauthenticated",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/logout/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "logout",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "token_refresh_without_cookie",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/token/refresh/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "token",
+                    "refresh",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cleanup",
+      "item": [
+        {
+          "name": "login_owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\nconst body = pm.response.json();\npm.test(\"Response contains the logged-in user\", () => pm.expect(body.user.username).to.eql(pm.environment.get(\"ownerUsername\")));\npm.test(\"access_token cookie is set\", () => pm.expect(pm.cookies.has(\"access_token\")).to.be.true);\npm.test(\"refresh_token cookie is set\", () => pm.expect(pm.cookies.has(\"refresh_token\")).to.be.true);\nif (pm.response.code === 200) { pm.environment.set(\"ownerRefreshToken\", pm.cookies.get(\"refresh_token\")); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{ownerUsername}}\",\n    \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "delete_quiz_as_owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quizzes/{{quizId}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quizzes",
+                "{{quizId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "get_deleted_quiz",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/quizzes/{{quizId}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "quizzes",
+                "{{quizId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "logout_owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));\npm.test(\"Logout message is returned\", () => pm.expect(pm.response.json().detail).to.include(\"Log-Out successfully!\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/logout/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "logout",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "token_refresh_with_blacklisted_token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));\n// The refresh token from before the logout must be on the blacklist now."
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refresh_token={{ownerRefreshToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/token/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "token",
+                "refresh",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
