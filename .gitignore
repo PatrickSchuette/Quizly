@@ -59,3 +59,6 @@ Thumbs.db
 
 # Frontend
 Frontend/
+
+#static
+/static/

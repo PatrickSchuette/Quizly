@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -125,8 +126,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
-
+FORCE_SCRIPT_NAME = os.getenv("FORCE_SCRIPT_NAME") or None
+STATIC_URL = f"{FORCE_SCRIPT_NAME or ''}/static/"
+STATIC_ROOT = BASE_DIR / "static"
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
@@ -140,9 +142,9 @@ MAILERS = {
 
 # CORS
 
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5500",
-]
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -166,6 +168,8 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "False") == "True"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")
 
 # Gemini
 
